@@ -1,0 +1,93 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'An example of creating a role that operates within a permissions boundary'
+Resources:
+
+  # Define the contributor role which users will operate under.
+  # Includes managed policy ARN's for interaction with services
+  # Includes a 
+  PaasContributor:
+      Type: AWS::IAM::Role
+      Properties: 
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement: 
+            - 
+              Effect: "Allow"
+              Principal: 
+                AWS: 
+                  - "arn:aws:iam::726508711480:user/sdevenis"
+              Action: 
+                - "sts:AssumeRole"
+        ManagedPolicyArns: 
+          # Include custom permissions
+          - !Ref ContributerPaasRoleCustomPermissions
+          # Include capability to create roles within permission boundary
+          - !Ref ContributerPaasRoleIamPermissions
+          # Include managed policies for all other services
+          - arn:aws:iam::aws:policy/job-function/Billing
+          # - arn:aws:iam::aws:policy/AmazonS3FullAccess
+          - arn:aws:iam::aws:policy/AmazonECS_FullAccess
+          - arn:aws:iam::aws:policy/CloudWatchFullAccess
+          - arn:aws:iam::aws:policy/AmazonEC2FullAccess
+          # - arn:aws:iam::aws:policy/AdministratorAccess
+    
+        Path: /
+        RoleName: PaasContributor
+
+  # Custom permissions if no managed policy exists.
+  # Note that these are included in the permissions boundary below.
+  ContributerPaasRoleCustomPermissions:
+    Type: AWS::IAM::ManagedPolicy
+    Properties: 
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Action: 
+              - "cloudformation:*"
+              - "iam:PutRolePermissionsBoundary"
+              - "iam:CreateInstanceProfile"
+              - "iam:AddRoleToInstanceProfile"
+              - "iam:PassRole"
+              - "iam:RemoveRoleFromInstanceProfile"
+              - "iam:DeleteRole"
+            Resource: "*"
+      
+
+  ContributerPaasRoleIamPermissions:
+    Type: AWS::IAM::ManagedPolicy
+    Properties: 
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+
+          # Allow the principal to manage IAM roles within the boundary of the defined policies.
+          - Sid: "CreateRolesWithinBoundary" 
+            Effect: "Allow"
+            Action: 
+              - "iam:CreateRole"
+              - "iam:AttachRolePolicy"
+              - "iam:DetachRolePolicy"
+            Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/*
+            Condition:
+              StringEquals:
+                iam:PermissionsBoundary: !Ref ContributerPaasRoleCustomPermissions
+                iam:PermissionsBoundary: arn:aws:iam::aws:policy/AmazonEC2FullAccess
+                iam:PermissionsBoundary: arn:aws:iam::aws:policy/AmazonS3FullAccess
+
+          # Grant permission to the principal to attach policies to the roles they create.
+          - Sid: "CreateAndEditPermissionsPolicy" 
+            Effect: "Allow"
+            Action: 
+              - "iam:CreatePolicy"
+              - "iam:CreatePolicyVersion"
+              - "iam:DeletePolicyVersion"
+            Resource: "*"
+          #  Resource: !Sub arn:aws:iam::${AWS::AccountId}:policy/custom-roles/*
+
+          # Allow the principal to pass the newly created roles to services.
+          # - Sid: "Allow"
+          #  Effect: "Allow"
+          #  Action: 
+          #    - "iam:PassRole"
+          #  Resource: !Sub arn:aws:iam::${AWS::AccountId}:policy/custom-roles/*

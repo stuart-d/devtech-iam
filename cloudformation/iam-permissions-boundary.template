@@ -1,0 +1,183 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'This template creates IAM resources for use within the Innovation Mine AWS Environment'
+Resources:
+
+  # InnoMine-ReadOnly role.
+  InnoMineReadOnly:
+      Type: AWS::IAM::Role
+      Properties: 
+        RoleName: InnoMine-ReadOnly
+        Path: /
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement: 
+            - 
+              Effect: "Allow"
+              Principal: 
+                AWS: 
+                  - "arn:aws:iam::726508711480:user/sdevenis"
+              Action: 
+                - "sts:AssumeRole"
+        ManagedPolicyArns: 
+          - arn:aws:iam::aws:policy/ReadOnlyAccess
+
+  # InnoMine-IaasContributor role.
+  InnoMineIaasContributor:
+      Type: AWS::IAM::Role
+      Properties: 
+        RoleName: InnoMine-IaasContributor
+        Path: /
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement: 
+            - 
+              Effect: "Allow"
+              Principal: 
+                AWS: 
+                  - "arn:aws:iam::726508711480:user/sdevenis"
+              Action: 
+                - "sts:AssumeRole"
+        ManagedPolicyArns: 
+          # Include custom permissions
+          - !Ref InnoMineIaasContributorPermissions
+          # Include capability to create roles within permission boundary
+          - !Ref ContributerRoleIamPermissions
+          # Include managed policies for all other services
+          - arn:aws:iam::aws:policy/job-function/Billing
+
+  # InnoMine-PaasContributor role.
+  InnoMinePaasContributor:
+      Type: AWS::IAM::Role
+      Properties: 
+        RoleName: InnoMine-PaasContributor
+        Path: /
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement: 
+            - 
+              Effect: "Allow"
+              Principal: 
+                AWS: 
+                  - "arn:aws:iam::726508711480:user/sdevenis"
+              Action: 
+                - "sts:AssumeRole"
+        ManagedPolicyArns: 
+          # Include custom permissions
+          - !Ref InnoMinePaasContributorPermissions
+          # Include capability to create roles within permission boundary
+          - !Ref ContributerRoleIamPermissions
+          # Include managed policies for all other services
+          - arn:aws:iam::aws:policy/job-function/Billing
+          # - arn:aws:iam::aws:policy/AdministratorAccess
+
+
+  # InnoMine-PaasContributor permissions.
+  InnoMinePaasContributorPermissions:
+    Type: AWS::IAM::ManagedPolicy
+    Properties: 
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Action:    
+              - "cloudformation:*"
+              - "ecs:*"
+              - "ecr:*"
+              - "route53:*"
+              - "lambda:*"
+              - "kms:*"
+              - "s3:*"
+              - "logs:*"
+              - "cloudwatch:*"
+            Resource: "*"
+
+  # InnoMine-IaasContributor permissions (adds ec2).
+  InnoMineIaasContributorPermissions:
+    Type: AWS::IAM::ManagedPolicy
+    Properties: 
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Action:    
+              - "ec2:*"
+              - "cloudformation:*"
+              - "ecs:*"
+              - "ecr:*"
+              - "route53:*"
+              - "lambda:*"
+              - "kms:*"
+              - "s3:*"
+              - "logs:*"
+              - "cloudwatch:*"
+            Resource: "*"
+
+  # Permissions boundary that must be adhered to when the Contributor roles create additional roles.
+  # Currently the same policy for Iaas and Paas, likely need to make separate policies.
+  PermissionsBoundary:
+    Type: AWS::IAM::ManagedPolicy
+    Properties: 
+      ManagedPolicyName: InnoMinePermissionsBoundary
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Action: 
+              - "ecs:*"
+              - "ecr:*"
+              - "s3:*"
+              - "application-autoscaling:*"
+              - "autoscaling:*"
+              - "logs:*"
+            Resource: "*"      
+
+
+  # Restrictive permissions for the Contributor roles to manage IAM resources.
+  # Currently the same policy for Iaas and Paas, likely need to make separate policies.
+  ContributerRoleIamPermissions:
+    Type: AWS::IAM::ManagedPolicy
+    Properties: 
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+
+          # Allow the Contributor role to create roles, only they include the following permission boundary:
+          # arn:aws:iam::${AWS::AccountId}:policy/PermissionsBoundary
+          - Sid: "AlllowCreateRolesWithinBoundary" 
+            Effect: "Allow"
+            Action: 
+              - "iam:CreateRole"
+              - "iam:DeleteRole"
+              - "iam:AttachRolePolicy"
+              - "iam:DetachRolePolicy"
+            Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/*
+            Condition:
+              StringEquals:
+                iam:PermissionsBoundary: !Ref PermissionsBoundary
+
+          # Allow the Contributor roles to pass roles to services.
+          # This is defined separately as we likely need to explicity deny iam:PassRole to Admin Roles.
+          # Using the role path property to enforce PassRole breaks some services.
+          - Sid: "AllowPassingRoles" 
+            Effect: "Allow"
+            Action: 
+              - "iam:PassRole"
+            Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/*
+
+          # Allow other IAM actions that are required when creating service linked roles etc
+          - Sid: "CreateAndEditIamPermissionsPolicy" 
+            Effect: "Allow"
+            Action: 
+              - "iam:CreateServiceLinkedRole"
+              - "iam:DeleteServiceLinkedRole"
+              - "iam:PutRolePermissionsBoundary"
+              - "iam:AddRoleToInstanceProfile"
+              - "iam:RemoveRoleFromInstanceProfile"
+              - "iam:ListPolicyVersions"
+              - "iam:CreatePolicy"
+              - "iam:DeletePolicy"
+              - "iam:CreatePolicyVersion"
+              - "iam:DeletePolicyVersion"
+              - "iam:CreateInstanceProfile"
+              - "iam:PutRolePolicy"
+            Resource: "*"

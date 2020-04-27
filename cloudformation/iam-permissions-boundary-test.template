@@ -1,0 +1,126 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'An example of creating a role that operates within a permissions boundary'
+Resources:
+
+  # Define the contributor role which users will operate under.
+  # Includes managed policy ARN's for interaction with services
+  # Includes a 
+#  TestRole:
+#      Type: AWS::IAM::Role
+#      Properties: 
+#        AssumeRolePolicyDocument:
+#          Version: "2012-10-17"
+#          Statement: 
+#            -
+#              Effect: "Allow"
+#              Principal: 
+#                Service: 
+#                  - "ec2.amazonaws.com"
+#              Action: 
+#                - "sts:AssumeRole"
+#        ManagedPolicyArns: 
+#          # - arn:aws:iam::aws:policy/AdministratorAccess
+#          - !Ref InstanceRolePolicy 
+#        Path: /custom-role/
+#        PermissionsBoundary: arn:aws:iam::aws:policy/AmazonS3FullAccess
+#
+#  TestLambdaRole:
+#    Type: AWS::IAM::Role
+#    Properties: 
+#      AssumeRolePolicyDocument:
+#        Version: "2012-10-17"
+#        Statement: 
+#          -
+#            Effect: "Allow"
+#            Principal: 
+#              Service: 
+#                - "lambda.amazonaws.com"
+#            Action: 
+#              - "sts:AssumeRole"
+#      ManagedPolicyArns: 
+#        - !Ref InstanceRolePolicy 
+#      Path: /custom-role/
+#      PermissionsBoundary: arn:aws:iam::aws:policy/AmazonS3FullAccess
+#
+  TestEcsRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement: 
+          -
+            Effect: "Allow"
+            Principal: 
+              Service: 
+                - "ecs-tasks.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - !Ref EcsRole 
+      Path: /
+      PermissionsBoundary: arn:aws:iam::726508711480:policy/PermissionsBoundary
+
+  Cluster: 
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: String
+
+  Service:
+     Type: AWS::ECS::Service
+     Properties:
+         Cluster: !Ref Cluster
+         LaunchType: FARGATE
+         ServiceName: Fargate-Service
+         DesiredCount: 1
+         TaskDefinition: !Ref TaskDefinition
+         NetworkConfiguration:
+             AwsvpcConfiguration:
+                 AssignPublicIp: ENABLED
+                 Subnets:
+                  - subnet-6d248909
+
+  TaskDefinition:
+        Type: AWS::ECS::TaskDefinition
+        Properties:
+            Cpu: 256
+            Memory: 0.5GB
+            NetworkMode: awsvpc
+            ExecutionRoleArn: !Ref TestEcsRole
+            RequiresCompatibilities:
+              - FARGATE
+            ContainerDefinitions:
+              - Name: nginx
+                Image: 726508711480.dkr.ecr.ap-southeast-2.amazonaws.com/nginx-example:latest
+                Memory: 128
+                PortMappings:
+                - ContainerPort: 80
+
+  #InstanceProfile:
+  #  Type: AWS::IAM::InstanceProfile
+  #  Properties:
+  #    Path: "/"
+  #    Roles: 
+  #      - Devtech-Admins
+
+ # EC2Instance:
+ #     Type: AWS::EC2::Instance
+ #     Properties:
+ #         ImageId: ami-47c21a25
+ #         KeyName: sdevenis 
+ #         InstanceType: t2.micro
+ #         SecurityGroupIds:
+ #         - sg-7bbe8f1f
+
+  EcsRole:
+    Type: AWS::IAM::ManagedPolicy
+    Properties: 
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Action: 
+              - "s3:*"
+              - "ecr:*"
+              - "rds:*"
+            Resource: "*"
