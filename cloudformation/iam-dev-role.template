@@ -1,0 +1,135 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Deploys a Developer role that is allowed to create additional IAM Roles. These additional IAM Roles are scoped such that they cannot exceed the permissions enforced by a Permissions Boundary.'
+Resources:
+
+  DeveloperRole:
+    Type: AWS::IAM::Role
+    Properties: 
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement: 
+            - 
+              Effect: "Allow"
+              Principal: 
+                AWS: 
+                  - "arn:aws:iam::726508711480:user/sdevenis"
+              Action: 
+                - "sts:AssumeRole"
+        Path: /
+        ManagedPolicyArns: 
+          - !Ref DeveloperRolePolicy          
+
+
+  DeveloperRolePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Description: "Permissions for the Developer Role"
+    Properties:
+       ManagedPolicyName: Developer-Policy
+       Path: /
+       PolicyDocument: 
+         Version: '2012-10-17'
+         Statement:
+
+             # Example of whitelisting services. 
+             
+             - Sid: ServicesWhitelist
+               Effect: Allow
+               Action: 
+                 - "ec2:*"
+                 - "rds:*"
+               Resource: '*'
+
+
+             
+             # Allow manipulating policies that begin with Developer-* only
+
+             - Sid: AllowCreateCustomPolicy
+               Effect: Allow
+               Action: 
+                 - "iam:CreatePolicy"
+                 - "iam:DeletePolicy"
+                 - "iam:CreatePolicyVersion"
+                 - "iam:DeletePolicyVersion"
+                 - "iam:GetPolicyVersion"
+
+               Resource: 
+                 - !Sub 'arn:aws:iam::${AWS::AccountId}:policy/Developer-*'
+
+             # Allowed to perform these actions on 2 contitions:
+             # 1) The name of the role begins with Developer-
+             # 2) When you perform these actions, oyu must pass the correct value for the Permissions Boundary.
+             # Why is DeleteRole not here? Because the DeleteRole API doens't accept a PermissionsBoundary value.
+
+             - Sid: "AlllowCreateRolesWithinBoundary" 
+               Effect: "Allow"
+               Action: 
+                 - "iam:CreateRole"
+                 - "iam:PutRolePolicy"
+                 - "iam:DeleteRolePolicy"
+                 - "iam:AttachRolePolicy"
+                 - "iam:DetachRolePolicy"
+
+
+               Resource: 
+                 - !Sub arn:aws:iam::${AWS::AccountId}:role/Developer-*
+               Condition:
+                 StringEquals:
+                   iam:PermissionsBoundary: !Ref PermissionBoundaryPolicyForRolesCreatedByDeveloper
+
+             # Allows putting roles on service Roles
+             - Sid: "AllowManipulationOfServiceLinkedRoles"
+               Effect: "Allow"
+               Action: 
+                 - "iam:PutRolePolicy"
+                 - "iam:DeleteRolePolicy"
+                 - "iam:AttachRolePolicy"
+                 - "iam:DetachRolePolicy"
+               Resource: 
+                 - arn:aws:iam::*:role/aws-service-role/*
+             
+             # Allowed passing and deleting service roles.
+             # Why is DeleteRole here? Look at comment for CreateRole.
+             - Sid: "DeleteAndPassRoles" 
+               Effect: "Allow"
+               Action: 
+                 - "iam:DeleteRole"
+                 - "iam:PassRole"
+                 - "iam:ListRolePolicies"   
+                 - "iam:ListAttachedRolePolicies"              
+               Resource: 
+                 - !Sub arn:aws:iam::${AWS::AccountId}:role/Developer-*
+                 - arn:aws:iam::*:role/aws-service-role/*
+
+             # Other IAM related Permissions that are required.
+             - Sid: "OtherIam" 
+               Effect: "Allow"
+               Action: 
+                 - "iam:ListPolicies"
+                 - "iam:ListRoles"
+                 - "iam:CreateServiceLinkedRole"
+                 - "iam:DeleteServiceLinkedRole"
+                 - "iam:GetServiceLinkedRoleDeletionStatus"
+                 - "iam:AddRoleToInstanceProfile"
+                 - "iam:RemoveRoleFromInstanceProfile"
+                 - "iam:CreateInstanceProfile"
+                 - "iam:DeleteInstanceProfile"
+               Resource: "*"
+
+  # This policy limits the maximum privilege the created role can assume.
+  PermissionBoundaryPolicyForRolesCreatedByDeveloper:
+    Type: AWS::IAM::ManagedPolicy
+    Description: Permission boundary for Roles that are CREATED BY Developer
+    Properties: 
+
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+
+          - Effect: "Allow"
+            Action: 
+              - "s3:*"
+            Resource: "*" 
+            Condition:
+                StringEquals:
+                    'aws:RequestedRegion':
+                        - ap-southeast-2
