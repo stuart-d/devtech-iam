@@ -1,10 +1,23 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: 'Deploys a Developer role that is allowed to create additional IAM Roles. These additional IAM Roles are scoped such that they cannot exceed the permissions enforced by a Permissions Boundary.'
-Resources:
 
+Parameters:
+  DeveloperRoleName: 
+    Type: String
+    Default: Developer
+    Description: The name of the IAM Role that the developer will work day to day
+
+  CreatedResourcesPattern: 
+    Type: String
+    Default: DeveloperServiceRole*
+    Description: This is the pattern that defines the naming convention for resources created by DeveloperRoleName. It is case sensitive. To define more than one, either modify the parameter type and template, or hard code them into each IAM policy. 
+
+
+Resources:
   DeveloperRole:
     Type: AWS::IAM::Role
     Properties: 
+        RoleName: !Ref DeveloperRoleName
         AssumeRolePolicyDocument:
           Version: "2012-10-17"
           Statement: 
@@ -24,7 +37,7 @@ Resources:
     Type: AWS::IAM::ManagedPolicy
     Description: "Permissions for the Developer Role"
     Properties:
-       ManagedPolicyName: Developer-Policy
+       ManagedPolicyName: !Sub ${DeveloperRoleName}Policy
        Path: /
        PolicyDocument: 
          Version: '2012-10-17'
@@ -41,7 +54,7 @@ Resources:
 
 
              
-             # Allow manipulating policies that begin with Developer-* only
+             # Allow manipulating policies that begin with CreatedResourcesPattern only
 
              - Sid: AllowCreateCustomPolicy
                Effect: Allow
@@ -53,10 +66,10 @@ Resources:
                  - "iam:GetPolicyVersion"
 
                Resource: 
-                 - !Sub 'arn:aws:iam::${AWS::AccountId}:policy/Developer-*'
+                 - !Sub 'arn:aws:iam::${AWS::AccountId}:policy/${CreatedResourcesPattern}*'
 
              # Allowed to perform these actions on 2 contitions:
-             # 1) The name of the role begins with Developer-
+             # 1) The name of the role begins with ${CreatedResourcesPattern}
              # 2) When you perform these actions, oyu must pass the correct value for the Permissions Boundary.
              # Why is DeleteRole not here? Because the DeleteRole API doens't accept a PermissionsBoundary value.
 
@@ -68,10 +81,8 @@ Resources:
                  - "iam:DeleteRolePolicy"
                  - "iam:AttachRolePolicy"
                  - "iam:DetachRolePolicy"
-
-
                Resource: 
-                 - !Sub arn:aws:iam::${AWS::AccountId}:role/Developer-*
+                 - !Sub arn:aws:iam::${AWS::AccountId}:role/${CreatedResourcesPattern}*
                Condition:
                  StringEquals:
                    iam:PermissionsBoundary: !Ref PermissionBoundaryPolicyForRolesCreatedByDeveloper
@@ -97,7 +108,7 @@ Resources:
                  - "iam:ListRolePolicies"   
                  - "iam:ListAttachedRolePolicies"              
                Resource: 
-                 - !Sub arn:aws:iam::${AWS::AccountId}:role/Developer-*
+                 - !Sub arn:aws:iam::${AWS::AccountId}:role/${CreatedResourcesPattern}*
                  - arn:aws:iam::*:role/aws-service-role/*
 
              # Other IAM related Permissions that are required.

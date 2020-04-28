@@ -1,0 +1,10 @@
+[
+  {
+    "ParameterKey": "DeveloperRoleName",
+    "ParameterValue": "DeveloperRole"
+  }, 
+  {
+    "ParameterKey": "CreatedResourcesPattern",
+    "ParameterValue": "DevServiceRole-*"
+  }
+]
