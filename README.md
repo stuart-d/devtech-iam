@@ -27,6 +27,27 @@ Additonally, if they are creating an IAM policy:
 Regardless of the policies that get attatched to the role that DeveloperRole creates, the PermissionBoundaryPolicyForRolesCreatedByDeveloper with ensure that the effective permisisons are not greater than s3:* in ap-southeast-2
 
 
+## Deployment with AWSCLI 
+
+**Update the Parameters file!**
+
+
+
+Create-Stack
+```
+aws cloudformation create-stack --stack-name IAM-Permission-Boundary-Example --template-body file://cloudformation/iam-perm-boundary.template --capabilities CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM CAPABILITY_IAM --parameters file://cloudformation/parameters.json
+```
+
+Update-Stack
+```
+aws cloudformation update-stack --stack-name IAM-Permission-Boundary-Example --template-body file://cloudformation/iam-perm-boundary.template --capabilities CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM CAPABILITY_IAM --parameters file://cloudformation/parameters.json
+
+```
+
+Delete-Stack
+```
+aws cloudformation delete-stack --stack-name IAM-Permission-Boundary-Example
+```
 
 
 ## Notes and FAQ
@@ -133,21 +154,3 @@ User: arn:aws:sts::123456789:assumed-role/iam-perm-boundary-DeveloperRole-14W1CA
 ```
 
 **In my experience, you won't see errors that explicitly tell you that you missed the permissions boundary**
-
-## Deployment with AWSCLI (On Windows)
-
-Create-Stack
-```
-aws cloudformation create-stack --stack-name IAM-Permission-Boundary-Example --template-body file://cloudformation/iam-perm-boundary.template --capabilities CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM CAPABILITY_IAM --parameters file://cloudformation/parameters.json
-```
-
-Update-Stack
-```
-aws cloudformation update-stack --stack-name IAM-Permission-Boundary-Example --template-body file://cloudformation/iam-perm-boundary.template --capabilities CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM CAPABILITY_IAM --parameters file://cloudformation/parameters.json
-
-```
-
-Delete-Stack
-```
-aws cloudformation delete-stack --stack-name IAM-Permission-Boundary-Example
-```

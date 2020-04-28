@@ -2,10 +2,16 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'Deploys a Developer role that is allowed to create additional IAM Roles. These additional IAM Roles are scoped such that they cannot exceed the permissions enforced by a Permissions Boundary.'
 
 Parameters:
+
+  DeveloperUserName:
+    Type: String
+    Default: Developer
+    Description: The name of the IAM User that will assume DeveloperRoleName.
+
   DeveloperRoleName: 
     Type: String
     Default: Developer
-    Description: The name of the IAM Role that the developer will work day to day
+    Description: The name of the IAM Role that the developer will work day to day.
 
   CreatedResourcesPattern: 
     Type: String
@@ -25,7 +31,7 @@ Resources:
               Effect: "Allow"
               Principal: 
                 AWS: 
-                  - "arn:aws:iam::726508711480:user/sdevenis"
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:user/${DeveloperUserName}'
               Action: 
                 - "sts:AssumeRole"
         Path: /
