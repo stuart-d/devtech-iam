@@ -26,6 +26,11 @@ Additonally, if they are creating an IAM policy:
 
 Regardless of the policies that get attatched to the role that DeveloperRole creates, the PermissionBoundaryPolicyForRolesCreatedByDeveloper with ensure that the effective permisisons are not greater than s3:* in ap-southeast-2
 
+## Links
+
+https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_aws-services-that-work-with-iam.html
+https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_actions-resources-contextkeys.html
+
 
 ## Deployment with AWSCLI 
 
