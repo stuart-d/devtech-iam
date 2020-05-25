@@ -1,0 +1,29 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Creates an role to be used by a pipeline to deploy services'
+
+Resources:
+  s3Bucket:
+    Type: AWS::S3::Bucket
+    Properties: 
+      AccessControl: Private 
+      BucketName: app1-sdevenis-tag-test
+      Tags:
+        - Key: AppId
+          Value: app1
+
+  ec2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      KeyName: sdevenis.pem 
+      DisableApiTermination: 
+      ImageId: 
+      InstanceType: 
+      Monitoring: true|false
+      SecurityGroupIds:
+        - sg-id
+      UserData: !Base64 |
+        #!/bin/bash -ex
+        # put your script here
+      Tags:
+        - Key: key
+          Value: value
