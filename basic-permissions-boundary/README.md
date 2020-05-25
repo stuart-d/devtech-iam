@@ -11,7 +11,7 @@ This template creates 3 resources:
 |DeveloperRole|The IAM role that developers work under. 
 |DeveloperRolePolicy|The IAM policy attached to the above role. This policy has conditional permissions to create additional IAM resources.
 |PermissionBoundaryPolicyForRolesCreatedByDeveloper| The IAM policy that defines the permissions boundary for roles created by the DeveloperRole.
-|
+
 
 In this example:
 

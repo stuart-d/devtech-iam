@@ -1,0 +1,616 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: This template provides the SRG common roles that are applied to all LZ managed AWS accounts.
+
+Parameters:
+  IdentityAccountId:
+    Description: The AWS Account ID of the SRG Identity Account
+    Type: String
+    Default: "129413351359"
+
+  CreateReadOnlyRole:
+    Type: String
+    Default: yes
+    AllowedValues:
+      - yes
+      - no
+
+Conditions:
+  CreateReadOnlyRoleCondition: !Equals [!Ref 'CreateReadOnlyRole', 'true']
+
+Resources:
+
+# Roles 
+
+  SrgEmergencyAdminRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: SRG-Emergency-Admin
+      AssumeRolePolicyDocument: 
+          Version: "2012-10-17"
+          Statement: 
+            - Effect: "Allow"
+              Principal: 
+                AWS: 
+                  - !Sub "arn:aws:iam::${IdentityAccountId}:root"
+              Action: 
+                - "sts:AssumeRole"
+              Condition: 
+                Bool:
+                  'aws:MultiFactorAuthPresent': true
+
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+  SrgNetworkAdminRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: SRG-Network-Admin
+      AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement: 
+            - Effect: "Allow"
+              Principal: 
+                AWS: 
+                  - !Sub "arn:aws:iam::${IdentityAccountId}:root"
+              Action: 
+                - "sts:AssumeRole"
+              Condition: 
+                Bool:
+                  'aws:MultiFactorAuthPresent': true
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/ReadOnlyAccess
+        - arn:aws:iam::aws:policy/AmazonVPCFullAccess
+        - !Ref SrgNetworkAdminRoleWhitelistPolicy
+      PermissionsBoundary: !Ref SrgNetworkAdminRoleBoundary
+
+  SrgApplicationAdminRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: SRG-Application-Admin
+      AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement: 
+
+            - Effect: "Allow"
+              Principal: 
+                AWS: 
+                  - !Sub "arn:aws:iam::${IdentityAccountId}:root"
+              Action: 
+                - "sts:AssumeRole"
+              Condition: 
+                Bool:
+                  'aws:MultiFactorAuthPresent': true
+
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/ReadOnlyAccess
+        - arn:aws:iam::aws:policy/AmazonEC2FullAccess
+        - arn:aws:iam::aws:policy/AWSLambdaFullAccess
+        - arn:aws:iam::aws:policy/AmazonSNSFullAccess
+        - arn:aws:iam::aws:policy/AmazonSQSFullAccess
+        - !Ref SrgApplicationAdminRoleWhitelistPolicy
+        - !Ref SrgApplicationAdminRoleBlacklistPolicy
+      PermissionsBoundary: !Ref SrgApplicationAdminRoleBoundary
+
+  SrgReadOnlyRole:
+    Type: AWS::IAM::Role
+    Condition: CreateReadOnlyRoleCondition
+    Properties:
+      RoleName: SRG-Read-Only
+      AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement: 
+
+            - Effect: "Allow"
+              Principal: 
+                AWS: 
+                  - !Sub "arn:aws:iam::${IdentityAccountId}:root"
+              Action: 
+                - "sts:AssumeRole"
+              Condition: 
+                Bool:
+                  'aws:MultiFactorAuthPresent': true
+
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/ReadOnlyAccess
+      PermissionsBoundary: !Ref SrgReadOnlyRoleBoundary
+
+
+## Policies
+
+  SrgNetworkAdminRoleWhitelistPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Description: "Whitelist Services for Network Admin Role"
+    Properties:
+      ManagedPolicyName: SRG-Network-Admin-Role-Whitelist-Policy
+      Path: /
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+
+            - Sid: ServicesWhitelist
+              Effect: Allow
+              Action: 
+                - "cloudformation:*"
+                - "transfer:*"
+                - "kms:*"
+                - "iam:*"
+                - "sns:*"
+                - "s3:*"
+                - "directconnect:*"
+              Resource: '*'
+            
+            - Sid: AwsTransitGateway
+              Effect: Allow
+              Action:
+                - ec2:accepttransitgatewayvpcattachment
+                - ec2:associatetransitgatewayroutetable
+                - ec2:createtransitgateway
+                - ec2:createtransitgatewayroute
+                - ec2:createtransitgatewayroutetable
+                - ec2:createtransitgatewayvpcattachment
+                - ec2:deletetransitgateway
+                - ec2:deletetransitgatewayroute
+                - ec2:deletetransitgatewayroutetable
+                - ec2:deletetransitgatewayvpcattachment
+                - ec2:describetransitgatewayattachments
+                - ec2:describetransitgatewayroutetables
+                - ec2:describetransitgatewayvpcattachments
+                - ec2:describetransitgateways
+                - ec2:disabletransitgatewayroutetablepropagation
+                - ec2:disassociatetransitgatewayroutetable
+                - ec2:enabletransitgatewayroutetablepropagation
+                - ec2:exporttransitgatewayroutes
+                - ec2:gettransitgatewayattachmentpropagations
+                - ec2:gettransitgatewayroutetableassociations
+                - ec2:gettransitgatewayroutetablepropagations
+                - ec2:modifytransitgatewayvpcattachment
+                - ec2:rejecttransitgatewayvpcattachment
+                - ec2:replacetransitgatewayroute
+                - ec2:searchtransitgatewayroutes
+              Resource: '*'
+
+            # Begin IAM Whitelisting
+            - Sid: AllowCreateCustomPolicy
+              Effect: Allow
+              Action: 
+                - "iam:CreatePolicy"
+                - "iam:DeletePolicy"
+                - "iam:CreatePolicyVersion"
+                - "iam:DeletePolicyVersion"
+              Resource: 
+                - !Sub 'arn:aws:iam::${AWS::AccountId}:policy/SRG-Net-*'
+                - !Sub 'arn:aws:iam::${AWS::AccountId}:policy/SRG-Network-*'
+
+            - Sid: "AlllowCreateRolesWithinBoundary" 
+              Effect: "Allow"
+              Action: 
+                - "iam:CreateRole"
+                - "iam:PutRolePolicy"
+                - "iam:DeleteRolePolicy"
+                - "iam:AttachRolePolicy"
+                - "iam:DetachRolePolicy"
+              Resource: 
+                - !Sub arn:aws:iam::${AWS::AccountId}:role/SRG-Net-*
+                - !Sub arn:aws:iam::${AWS::AccountId}:role/SRG-Network-*
+              Condition:
+                StringEquals:
+                  iam:PermissionsBoundary: !Ref PermissionBoundaryForRolesCreatedByNetworkAdmin
+
+            - Sid: "AllowManipulationOfServiceLinkedRoles"
+              Effect: "Allow"
+              Action: 
+                - "iam:PutRolePolicy"
+                - "iam:DeleteRolePolicy"
+                - "iam:AttachRolePolicy"
+                - "iam:DetachRolePolicy"
+              Resource: 
+                - arn:aws:iam::*:role/aws-service-role/*
+
+            - Sid: "DeleteAndPassRoles" 
+              Effect: "Allow"
+              Action: 
+                - "iam:DeleteRole"
+                - "iam:PassRole"
+              Resource: 
+                - !Sub arn:aws:iam::${AWS::AccountId}:role/SRG-Net-*
+                - !Sub arn:aws:iam::${AWS::AccountId}:role/SRG-Network-*
+                - arn:aws:iam::*:role/aws-service-role/*
+
+            - Sid: "OtherIam" 
+              Effect: "Allow"
+              Action: 
+                - "iam:CreateServiceLinkedRole"
+                - "iam:DeleteServiceLinkedRole"
+                - "iam:GetServiceLinkedRoleDeletionStatus"
+                - "iam:AddRoleToInstanceProfile"
+                - "iam:RemoveRoleFromInstanceProfile"
+                - "iam:CreateInstanceProfile"
+                - "iam:DeleteInstanceProfile"
+              Resource: "*"
+              # End IAM Whitelisting
+
+  SrgApplicationAdminRoleBlacklistPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Description: "Blacklist Services for Application Admin Role"
+    Properties:
+      ManagedPolicyName: SRG-Application-Admin-Role-Blacklist-Policy
+      Path: /
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+            - 
+                Effect: Deny
+                Action:
+                    - 'ec2:AcceptVpcPeeringConnection'
+                    - 'ec2:AcceptVpcEndpointConnections'
+                    - 'ec2:AllocateAddress'
+                    - 'ec2:AssignIpv6Addresses'
+                    - 'ec2:AssignPrivateIpAddresses'
+                    - 'ec2:AssociateAddress'
+                    - 'ec2:AssociateDhcpOptions'
+                    - 'ec2:AssociateRouteTable'
+                    - 'ec2:AssociateSubnetCidrBlock'
+                    - 'ec2:AssociateVpcCidrBlock'
+                    - 'ec2:AttachClassicLinkVpc'
+                    - 'ec2:AttachInternetGateway'
+                    - 'ec2:AttachNetworkInterface'
+                    - 'ec2:AttachVpnGateway'
+                    - 'ec2:AuthorizeSecurityGroupEgress'
+                    - 'ec2:AuthorizeSecurityGroupIngress'
+                    - 'ec2:CreateCustomerGateway'
+                    - 'ec2:CreateDefaultSubnet'
+                    - 'ec2:CreateDefaultVpc'
+                    - 'ec2:CreateDhcpOptions'
+                    - 'ec2:CreateEgressOnlyInternetGateway'
+                    - 'ec2:CreateFlowLogs'
+                    - 'ec2:CreateInternetGateway'
+                    - 'ec2:CreateNatGateway'
+                    - 'ec2:CreateNetworkAcl'
+                    - 'ec2:CreateNetworkAcl'
+                    - 'ec2:CreateNetworkAclEntry'
+                    - 'ec2:CreateNetworkInterface'
+                    - 'ec2:CreateNetworkInterfacePermission'
+                    - 'ec2:CreateRoute'
+                    - 'ec2:CreateRouteTable'
+                    - 'ec2:CreateSecurityGroup'
+                    - 'ec2:CreateSubnet'
+                    - 'ec2:CreateVpc'
+                    - 'ec2:CreateVpcEndpoint'
+                    - 'ec2:CreateVpcEndpointConnectionNotification'
+                    - 'ec2:CreateVpcEndpointServiceConfiguration'
+                    - 'ec2:CreateVpcPeeringConnection'
+                    - 'ec2:CreateVpnConnection'
+                    - 'ec2:CreateVpnConnectionRoute'
+                    - 'ec2:CreateVpnGateway'
+                    - 'ec2:DeleteCustomerGateway'
+                    - 'ec2:DeleteDhcpOptions'
+                    - 'ec2:DeleteEgressOnlyInternetGateway'
+                    - 'ec2:DeleteFlowLogs'
+                    - 'ec2:DeleteInternetGateway'
+                    - 'ec2:DeleteNatGateway'
+                    - 'ec2:DeleteNetworkAcl'
+                    - 'ec2:DeleteNetworkAclEntry'
+                    - 'ec2:DeleteNetworkInterface'
+                    - 'ec2:DeleteNetworkInterfacePermission'
+                    - 'ec2:DeleteRoute'
+                    - 'ec2:DeleteRouteTable'
+                    - 'ec2:DeleteSecurityGroup'
+                    - 'ec2:DeleteSubnet'
+                    - 'ec2:DeleteVpc'
+                    - 'ec2:DeleteVpcEndpoints'
+                    - 'ec2:DeleteVpcEndpointConnectionNotifications'
+                    - 'ec2:DeleteVpcEndpointServiceConfigurations'
+                    - 'ec2:DeleteVpcPeeringConnection'
+                    - 'ec2:DeleteVpnConnection'
+                    - 'ec2:DeleteVpnConnectionRoute'
+                    - 'ec2:DeleteVpnGateway'
+                    - 'ec2:DetachClassicLinkVpc'
+                    - 'ec2:DetachInternetGateway'
+                    - 'ec2:DetachNetworkInterface'
+                    - 'ec2:DetachVpnGateway'
+                    - 'ec2:DisableVgwRoutePropagation'
+                    - 'ec2:DisableVpcClassicLink'
+                    - 'ec2:DisableVpcClassicLinkDnsSupport'
+                    - 'ec2:DisassociateAddress'
+                    - 'ec2:DisassociateRouteTable'
+                    - 'ec2:DisassociateSubnetCidrBlock'
+                    - 'ec2:DisassociateVpcCidrBlock'
+                    - 'ec2:EnableVgwRoutePropagation'
+                    - 'ec2:EnableVpcClassicLink'
+                    - 'ec2:EnableVpcClassicLinkDnsSupport'
+                    - 'ec2:ModifyNetworkInterfaceAttribute'
+                    - 'ec2:ModifySubnetAttribute'
+                    - 'ec2:ModifyVpcAttribute'
+                    - 'ec2:ModifyVpcEndpoint'
+                    - 'ec2:ModifyVpcEndpointConnectionNotification'
+                    - 'ec2:ModifyVpcEndpointServiceConfiguration'
+                    - 'ec2:ModifyVpcEndpointServicePermissions'
+                    - 'ec2:ModifyVpcPeeringConnectionOptions'
+                    - 'ec2:ModifyVpcTenancy'
+                    - 'ec2:MoveAddressToVpc'
+                    - 'ec2:RejectVpcEndpointConnections'
+                    - 'ec2:RejectVpcPeeringConnection'
+                    - 'ec2:ReleaseAddress'
+                    - 'ec2:ReplaceNetworkAclAssociation'
+                    - 'ec2:ReplaceNetworkAclEntry'
+                    - 'ec2:ReplaceRoute'
+                    - 'ec2:ReplaceRouteTableAssociation'
+                    - 'ec2:ResetNetworkInterfaceAttribute'
+                    - 'ec2:RestoreAddressToClassic'
+                    - 'ec2:RevokeSecurityGroupEgress'
+                    - 'ec2:RevokeSecurityGroupIngress'
+                    - 'ec2:UnassignIpv6Addresses'
+                    - 'ec2:UnassignPrivateIpAddresses'
+                    - 'ec2:UpdateSecurityGroupRuleDescriptionsEgress'
+                    - 'ec2:UpdateSecurityGroupRuleDescriptionsIngress'
+                Resource: '*'
+        
+                        
+        
+  SrgApplicationAdminRoleWhitelistPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Description: "Whitelist Services for Application Admin Role"
+    Properties:
+      ManagedPolicyName: SRG-Application-Admin-Role-Whitelist-Policy
+      Path: /
+      PolicyDocument: 
+        Version: '2012-10-17'
+        Statement:
+
+            - Sid: ServicesWhitelist
+              Effect: Allow
+              Action: 
+                - "cloudformation:*"
+                - "rds:*"
+                - "glue:*"
+                - "athena:*"
+                - "dms:*"
+                - "kms:*"
+                - "s3:*"
+                - "transfer:CreateUser"
+                - "transfer:UpdateUser"
+                - "transfer:DeleteUser"
+                - "transfer:Describe*"
+                - "transfer:List*"
+                - "transfer:ImportSshPublicKey"
+                - "aws-marketplace:*"
+                - "codecommit:*"
+                - "codebuild:*"
+                - "codepipeline:*"
+                - "codedeploy:*"
+              Resource: '*'
+
+            # Begin IAM Whitelisting
+            - Sid: AllowCreateCustomPolicy
+              Effect: Allow
+              Action: 
+                - "iam:CreatePolicy"
+                - "iam:DeletePolicy"
+                - "iam:CreatePolicyVersion"
+                - "iam:DeletePolicyVersion"
+              Resource: 
+                - !Sub 'arn:aws:iam::${AWS::AccountId}:policy/SRG-App-*'
+                - !Sub 'arn:aws:iam::${AWS::AccountId}:policy/SRG-Application-*'
+                - !Sub 'arn:aws:iam::${AWS::AccountId}:policy/SRG-Databunker-*'
+
+            - Sid: "AlllowCreateRolesWithinBoundary" 
+              Effect: "Allow"
+              Action: 
+                - "iam:CreateRole"
+                - "iam:PutRolePolicy"
+                - "iam:DeleteRolePolicy"
+                - "iam:AttachRolePolicy"
+                - "iam:DetachRolePolicy"
+              Resource: 
+                - !Sub arn:aws:iam::${AWS::AccountId}:role/SRG-App-*
+                - !Sub arn:aws:iam::${AWS::AccountId}:role/SRG-Application-*
+                - !Sub arn:aws:iam::${AWS::AccountId}:role/SRG-Databunker-*
+              Condition:
+                StringEquals:
+                  iam:PermissionsBoundary: !Ref PermissionBoundaryForRolesCreatedByApplicationAdmin
+
+            - Sid: "AllowManipulationOfServiceLinkedRoles"
+              Effect: "Allow"
+              Action: 
+                - "iam:PutRolePolicy"
+                - "iam:DeleteRolePolicy"
+                - "iam:AttachRolePolicy"
+                - "iam:DetachRolePolicy"
+              Resource: 
+                - arn:aws:iam::*:role/aws-service-role/*
+
+            - Sid: "DeleteAndPassRoles" 
+              Effect: "Allow"
+              Action: 
+                - "iam:DeleteRole"
+                - "iam:PassRole"
+              Resource: 
+                - !Sub arn:aws:iam::${AWS::AccountId}:role/SRG-App-*
+                - !Sub arn:aws:iam::${AWS::AccountId}:role/SRG-Application-*
+                - !Sub arn:aws:iam::${AWS::AccountId}:role/SRG-Databunker-*
+                - arn:aws:iam::*:role/aws-service-role/*
+
+            - Sid: "OtherIam" 
+              Effect: "Allow"
+              Action: 
+                - "iam:CreateServiceLinkedRole"
+                - "iam:DeleteServiceLinkedRole"
+                - "iam:GetServiceLinkedRoleDeletionStatus"
+                - "iam:AddRoleToInstanceProfile"
+                - "iam:RemoveRoleFromInstanceProfile"
+                - "iam:CreateInstanceProfile"
+                - "iam:DeleteInstanceProfile"
+              Resource: "*"
+              # End IAM Whitelisting
+          
+
+## Permission Boundary entries
+
+  # Allows access only if in ap-southeast-2
+  SrgReadOnlyRoleBoundary:
+    Type: AWS::IAM::ManagedPolicy
+    Description: Permission boundary for the SRG-Read-Only role.
+    Properties:
+      ManagedPolicyName: SRG-Read-Only-Role-Permission-Boundary
+      Path: /
+      PolicyDocument: 
+        Version: '2012-10-17'
+        Statement:
+            - Sid: RegionLock
+              Effect: Allow
+              Action: '*'
+              Resource: '*'
+              Condition:
+                  StringEquals:
+                      'aws:RequestedRegion':
+                          - ap-southeast-2
+
+
+  # Allows access only if in ap-southeast-2
+  SrgNetworkAdminRoleBoundary:
+    Type: AWS::IAM::ManagedPolicy
+    Description: Permission boundary for the SRG-Network-Admin role.
+    Properties:
+      ManagedPolicyName: SRG-Network-Admin-Role-Permission-Boundary
+      Path: /
+      PolicyDocument: 
+        Version: '2012-10-17'
+        Statement:
+            - Sid: RegionLock
+              Effect: Allow
+              Action: '*'
+              Resource: '*'
+              Condition:
+                  StringEquals:
+                      'aws:RequestedRegion':
+                          - ap-southeast-2
+
+            - Sid: AllowUSEastForIam
+              Effect: Allow
+              Action: 
+                - 'directconnect:*'
+                - 'iam:*'
+                - 'sts:*'
+                - 'aws-marketplace:*'
+              Resource: '*'
+              Condition:
+                  StringEquals:
+                      'aws:RequestedRegion':
+                          - us-east-1
+
+            - Sid: ProtectLzCloudFormationStacks
+              Effect: Deny
+              Action:
+                  - 'cloudformation:*'
+              Resource: 
+                  - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*AWS-Landing-Zone*'
+                  - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*SRG-Common*'
+                  - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*SRG-App-*'
+                  - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*SRG-Application-*'
+ 
+  SrgApplicationAdminRoleBoundary:
+     Type: AWS::IAM::ManagedPolicy
+     Description: Permission boundary for the SRG-Network-Admin role.
+     Properties:
+       ManagedPolicyName: SRG-Application-Admin-Role-Permission-Boundary
+       Path: /
+       PolicyDocument: 
+         Version: '2012-10-17'
+         Statement:
+
+             - Sid: RegionLock
+               Effect: Allow
+               Action: '*'
+               Resource: '*'
+               Condition:
+                   StringEquals:
+                       'aws:RequestedRegion':
+                           - ap-southeast-2
+
+             - Sid: AllowUSEastForIam
+               Effect: Allow
+               Action: 
+                 - 'iam:*'
+                 - 'sts:*'
+                 - 'aws-marketplace:*'
+               Resource: '*'
+               Condition:
+                   StringEquals:
+                       'aws:RequestedRegion':
+                           - us-east-1
+
+             - Sid: RestrictInstanceTypes
+               Effect: Allow
+               Action: 'ec2:RunInstances'
+               Resource: '*'
+               Condition:
+                   StringEquals:
+                       'ec2:InstanceType':
+                           - t2.micro
+
+             - Sid: ProtectLzCloudFormationStacks
+               Effect: Deny
+               Action:
+                   - 'cloudformation:*'
+               Resource: 
+                  - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*AWS-Landing-Zone*'
+                  - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*SRG-Common*'
+                  - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*SRG-Net-*'
+                  - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*SRG-Network-*'
+  
+  # Permissions boundary that must be adhered to when the SRG-Application-Admin role creates an IAM role
+  PermissionBoundaryForRolesCreatedByApplicationAdmin:
+    Type: AWS::IAM::ManagedPolicy
+    Description: Permission boundary for roles that Application Admin creates
+    Properties: 
+      ManagedPolicyName: SRG-Perm-Boundary-For-Roles-Created-by-Application-Admin
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+
+          - Effect: "Allow"
+            Action: 
+              - "s3:*"
+              - "sqs:*"
+              - "lambda:*"
+              - "logs:*"
+              - "cloudwatch:*"
+              - "kms:*"
+              - "rds:*"
+              - "ec2:describe*"
+              - "ec2:createsnapshot"
+              - "ec2:createtags"
+              - "ec2:DescribeRegions"
+              - "ec2:ModifyInstanceAttributes"
+              - "ec2:StartInstances"
+              - "ec2:StopInstances"
+              - "ec2:DeleteTags"
+              - "ssm:*"
+              - "tag:*"
+              - "sns:*"
+              - "dynamodb:*"
+              - "dms:*"
+            Resource: "*" 
+            Condition:
+                StringEquals:
+                    'aws:RequestedRegion':
+                        - ap-southeast-2
+  # Permissions boundary that must be adhered to when the SRG-Netowrk-Admin role creates an IAM role
+  PermissionBoundaryForRolesCreatedByNetworkAdmin:
+    Type: AWS::IAM::ManagedPolicy
+    Description: Permission boundary for roles that Application Admin creates
+    Properties: 
+      ManagedPolicyName: SRG-Perm-Boundary-For-Roles-Created-by-Network-Admin
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+
+          - Effect: "Allow"
+            Action: 
+              - "s3:*"
+              - "logs:*"
+            Resource: "*" 
+            Condition:
+                StringEquals:
+                    'aws:RequestedRegion':
+                        - ap-southeast-2

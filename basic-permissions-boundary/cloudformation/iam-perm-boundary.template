@@ -49,7 +49,7 @@ Resources:
          Version: '2012-10-17'
          Statement:
 
-             # Example of whitelisting services. 
+             # Example of whitelisting services. EC2 and RDS allowed in this example.
              
              - Sid: ServicesWhitelist
                Effect: Allow
@@ -75,9 +75,9 @@ Resources:
                  - !Sub 'arn:aws:iam::${AWS::AccountId}:policy/${CreatedResourcesPattern}*'
 
              # Allowed to perform these actions on 2 contitions:
-             # 1) The name of the role begins with ${CreatedResourcesPattern}
-             # 2) When you perform these actions, oyu must pass the correct value for the Permissions Boundary.
-             # Why is DeleteRole not here? Because the DeleteRole API doens't accept a PermissionsBoundary value.
+             # 1) The name of the role matches ${CreatedResourcesPattern}
+             # 2) When you perform these actions, you must pass the correct value for the Permissions Boundary.
+             # Why is DeleteRole not here? Because the DeleteRole API doesn't accept a PermissionsBoundary value.
 
              - Sid: "AlllowCreateRolesWithinBoundary" 
                Effect: "Allow"
