@@ -1,0 +1,138 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Creates an role to be used by a pipeline to deploy services"
+
+Resources:
+  IamExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      #      RoleName: ExecutionRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              AWS:
+                - !Sub "arn:aws:iam::${AWS::AccountId}:user/sdevenis"
+            Action:
+              - "sts:AssumeRole"
+      Path: /
+      Tags:
+        - Key: app-id
+          Value: application1
+      ManagedPolicyArns:
+        - !Ref AllowCloudFormationPolicy
+        - !Ref AllowS3Policy
+        - !Ref AllowEc2Policy
+
+  AllowCloudFormationPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Description: "Permissions to enable access to S3"
+    Properties:
+      # ManagedPolicyName:
+      Path: /
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: EnableCloudFormation
+            Effect: Allow
+            Action:
+              - "cloudformation:*"
+            Resource: "*"
+        #       Condition:
+        #          StringEquals:
+        #            aws:RequestTag/AppId: "${aws:PrincipalTag/AppId}"
+
+  # 21-05-2020
+  # S3 doesn't support tag based authorisation on buckets, only objects. So for buckets we use the bucket name.
+  # Buckets can only be lowercase names so putting the condition on the resource means that the tag value must be lowercase.
+  # Can't figure out how to string match the backet name
+  AllowS3Policy:
+    Type: AWS::IAM::ManagedPolicy
+    Description: "Permissions to enable access to S3"
+    Properties:
+      # ManagedPolicyName:
+      Path: /
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: EnableS3with
+            Effect: Allow
+            Action:
+              - "s3:createbucket"
+              - "s3:deletebucket"
+            Resource:
+              - "arn:aws:s3:::${aws:PrincipalTag/app-id}*"
+
+  # 25-05-2020
+  # EC2 is a complex service.
+  # This policy enforces tags on create for both the instance and ebs volues.
+  # Note that the AWS::EC2::Instance CloudFormation resource type doesn't support tag on create and therefore tagging in that resource won't satisfy this policy.
+  # EC2 instances need to reference a AWS::EC2::LaunchTemplate. Tags can be defined in the Launch Template which will be applied at launch via ec2:runinstances.
+  AllowEc2Policy:
+    Type: AWS::IAM::ManagedPolicy
+    Description: "Permissions to enable access to EC2"
+    Properties:
+      Path: /
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          # Allows all users to call describe API's and create launch templates.
+          - Sid: AllowToDescribeAll
+            Effect: Allow
+            Action:
+              - "ec2:Describe*"
+              - "ec2:CreateLaunchTemplate"
+              - "ec2:CreateLaunchTemplateVersion"
+              - "ec2:DeleteLaunchTemplate"
+              - "ec2:DeleteLaunchTemplateVersion"
+            Resource: "*"
+
+          # The NotResource on this enables runinstances to interact with VPC keypairs etc.
+          - Sid: AllowRunInstances
+            Effect: Allow
+            Action:
+              - "ec2:CreateVolume"
+              - "ec2:DeleteVolume"
+              - "ec2:RunInstances"
+              - "ec2:TerminateInstances"
+            NotResource:
+              - "arn:aws:ec2:*:*:instance/*"
+              - "arn:aws:ec2:*:*:volume/*"
+
+          # Allow the launch of instances or creation of volumes if passed the appriporate tag.
+          - Sid: AllowRunInstancesWithRestrictions
+            Effect: Allow
+            Action:
+              - "ec2:RunInstances"
+            Resource:
+              - "arn:aws:ec2:*:*:instance/*"
+              - "arn:aws:ec2:*:*:volume/*"
+            Condition:
+              StringEquals:
+                "aws:RequestTag/app-id": ${aws:PrincipalTag/app-id}
+
+          # Allow the termination of instances and deleting of volumes with the correct tag.
+          - Sid: AllowTerminateInstancesWithOwnTags
+            Effect: Allow
+            Action:
+              - "ec2:TerminateInstances"
+              - "ec2:DeleteTags"
+            Resource:
+              - "arn:aws:ec2:*:*:instance/*"
+              - "arn:aws:ec2:*:*:volume/*"
+            Condition:
+              StringEquals:
+                "ec2:ResourceTag/app-id": ${aws:PrincipalTag/app-id}
+
+          # Can only call create tags during a RunInstances call and with the correct tags.
+          - Sid: AllowCreateTagsOnlyLaunching
+            Effect: Allow
+            Action:
+              - "ec2:CreateTags"
+            Resource:
+              - "arn:aws:ec2:*:*:instance/*"
+              - "arn:aws:ec2:*:*:volume/*"
+            Condition:
+              StringEquals:
+                "ec2:CreateAction": RunInstances
+                "aws:RequestTag/app-id": ${aws:PrincipalTag/app-id}

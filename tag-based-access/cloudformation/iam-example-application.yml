@@ -1,0 +1,40 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Creates an role to be used by a pipeline to deploy services'
+
+Resources:
+  s3Bucket:
+    Type: AWS::S3::Bucket
+    Properties: 
+      AccessControl: Private 
+      BucketName: application1-sdevenis-tag-test
+      Tags:
+        - Key: app-id
+          Value: app1
+
+  ec2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      Monitoring: false
+      SubnetId: subnet-9b4a81ed
+      LaunchTemplate:
+        LaunchTemplateId: !Ref ec2LaunchTemplate
+        Version: 1
+              
+  ec2LaunchTemplate: # The Launch Template that will be used to deploy the test environment
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+#      LaunchTemplateName: ec2LaunchTemplate
+      LaunchTemplateData:
+        ImageId: ami-0970010f37c4f9c8d
+        InstanceType: t3.micro
+        SecurityGroupIds:
+        - sg-7bbe8f1f
+        TagSpecifications:
+        - ResourceType: instance
+          Tags:
+          - Key: app-id
+            Value: application1
+        - ResourceType: volume
+          Tags:
+          - Key: app-id
+            Value: application1
